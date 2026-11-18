@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product form | Daraz Clone</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="header"></div>
+  <main class="container">
+    <div id="flash"></div>
+    <section class="auth admin-form">
+      <h1 id="heading">Add product</h1>
+      <form id="form">
+        <label for="name">Name</label>
+        <input type="text" id="name" required>
+        <label for="category">Category</label>
+        <input type="text" id="category" list="cats" required>
+        <datalist id="cats"></datalist>
+        <label for="price">Price (Rs.)</label>
+        <input type="number" id="price" min="1" required>
+        <label for="old_price">Old price (optional, shows a discount)</label>
+        <input type="number" id="old_price" min="1">
+        <label for="stock">Stock</label>
+        <input type="number" id="stock" min="0" value="10" required>
+        <label for="image">Image URL (optional)</label>
+        <input type="url" id="image">
+        <label for="description">Description</label>
+        <textarea id="description" rows="4"></textarea>
+        <button class="btn" type="submit" id="save">Add product</button>
+      </form>
+      <p class="auth-alt"><a href="/admin.html">Back to products</a></p>
+    </section>
+  </main>
+  <footer>Daraz Clone | Web Technology course project</footer>
+  <script src="/js/app.js"></script>
+  <script>
+    (async () => {
+      const me = await renderHeader();
+      if (!requireLogin(me)) return;
+      if (!me.is_admin) {
+        document.querySelector(".auth").innerHTML = '<p class="empty-box">Only admins can open this page. <a href="/">Back to home</a></p>';
+        return;
+      }
+
+      const id = new URLSearchParams(location.search).get("id");      // present = edit mode
+      const { categories } = await api("/api/products");
+      $("cats").innerHTML = categories.map(c => `<option value="${esc(c)}">`).join("");
+
+      if (id) {
+        try {
+          const p = await api("/api/products/" + encodeURIComponent(id));
+          $("heading").textContent = "Edit product";
+          $("save").textContent = "Save changes";
+          for (const f of ["name", "category", "price", "old_price", "stock", "image", "description"]) $(f).value = p[f] ?? "";
+        } catch (e) { flash("Product not found."); return; }
+      }
+
+      $("form").onsubmit = async e => {
+        e.preventDefault();
+        const data = {
+          name: $("name").value, category: $("category").value,
+          price: parseInt($("price").value, 10), old_price: parseInt($("old_price").value, 10) || null,
+          stock: parseInt($("stock").value, 10), image: $("image").value, description: $("description").value
+        };
+        try {
+          if (id) await api("/api/admin/products/" + encodeURIComponent(id), "PUT", data);
+          else await api("/api/admin/products", "POST", data);
+          flashNext(id ? "Product updated." : "Product added.");
+          location.href = "/admin.html";
+        } catch (err) { flash(err.message); }
+      };
+    })();
+  </script>
+</body>
+</html>

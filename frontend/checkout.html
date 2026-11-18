@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout | Daraz Clone</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="header"></div>
+  <main class="container">
+    <div id="flash"></div>
+    <h2 class="section-title">Checkout</h2>
+    <div id="content"></div>
+  </main>
+  <footer>Daraz Clone | Web Technology course project</footer>
+  <script src="/js/app.js"></script>
+  <script>
+    (async () => {
+      const me = await renderHeader();
+      if (!requireLogin(me)) return;
+      const c = await api("/api/cart");
+      if (!c.items.length) { $("content").innerHTML = '<p class="empty-box">Your cart is empty. <a href="/">Continue shopping</a></p>'; return; }
+
+      $("content").innerHTML = `
+        <section class="cart">
+          <form id="form" class="panel">
+            <h3>Delivery address</h3>
+            <textarea id="address" rows="4" placeholder="House no, street, area, city" required></textarea>
+            <h3>Payment method</h3>
+            <p class="note">Cash on Delivery</p>
+            <button type="submit" class="btn">Place Order</button>
+          </form>
+          <aside class="summary">
+            <h3>Your items</h3>
+            ${c.items.map(i => `<div class="sum-row"><span>${esc(i.name)} x ${i.quantity}</span><span>${money(i.price * i.quantity)}</span></div>`).join("")}
+            <div class="sum-row"><span>Shipping</span><span>Free</span></div>
+            <div class="sum-row total"><span>Total</span><span>${money(c.total)}</span></div>
+          </aside>
+        </section>`;
+
+      $("form").onsubmit = async e => {
+        e.preventDefault();
+        try {
+          const r = await api("/api/checkout", "POST", { address: $("address").value });
+          flashNext("Order placed successfully!");
+          location.href = "/order.html?id=" + r.order_id;
+        } catch (err) { flash(err.message); }
+      };
+    })();
+  </script>
+</body>
+</html>

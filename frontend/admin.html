@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin | Daraz Clone</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="header"></div>
+  <main class="container">
+    <div id="flash"></div>
+    <div id="content">
+      <div class="admin-head">
+        <h2 class="section-title">Manage products</h2>
+        <a class="btn" href="/admin-form.html">Add product</a>
+      </div>
+      <div class="cart-items" id="list"></div>
+    </div>
+  </main>
+  <footer>Daraz Clone | Web Technology course project</footer>
+  <script src="/js/app.js"></script>
+  <script>
+    (async () => {
+      const me = await renderHeader();
+      if (!requireLogin(me)) return;
+      if (!me.is_admin) {
+        $("content").innerHTML = '<p class="empty-box">Only admins can open this page. <a href="/">Back to home</a></p>';
+        return;
+      }
+
+      async function load() {
+        const { products } = await api("/api/products");
+        $("list").innerHTML = products.length ? products.slice().reverse().map(p => `
+          <div class="admin-row">
+            <img src="${esc(p.image)}" alt="">
+            <div>
+              <a href="/product.html?id=${p.id}">${esc(p.name)}</a>
+              <div class="muted">${esc(p.category)}</div>
+            </div>
+            <span>${money(p.price)}</span>
+            <span class="${p.stock === 0 ? "out" : ""}">Stock: ${p.stock}</span>
+            <a class="link-btn" href="/admin-form.html?id=${p.id}">Edit</a>
+            <button class="link-btn danger" data-delete="${p.id}">Delete</button>
+          </div>`).join("") : '<p class="empty-box">No products yet. Add your first product.</p>';
+      }
+
+      $("list").onclick = async e => {
+        const id = e.target.dataset.delete;
+        if (!id || !confirm("Delete this product?")) return;
+        try {
+          await api("/api/admin/products/" + id, "DELETE", {});
+          flash("Product deleted.", "success");
+          await load();
+        } catch (err) { flash(err.message); }
+      };
+      load();
+    })();
+  </script>
+</body>
+</html>

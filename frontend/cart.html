@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Cart | Daraz Clone</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="header"></div>
+  <main class="container">
+    <div id="flash"></div>
+    <h2 class="section-title">My Cart</h2>
+    <div id="content"></div>
+  </main>
+  <footer>Daraz Clone | Web Technology course project</footer>
+  <script src="/js/app.js"></script>
+  <script>
+    (async () => {
+      const me = await renderHeader();
+      if (!requireLogin(me)) return;
+
+      async function load() {
+        const c = await api("/api/cart");
+        if (!c.items.length) { $("content").innerHTML = '<p class="empty-box">Your cart is empty. <a href="/">Continue shopping</a></p>'; return; }
+        $("content").innerHTML = `
+          <section class="cart">
+            <div class="cart-items">
+              ${c.items.map(i => `
+                <div class="cart-row">
+                  <img src="${esc(i.image)}" alt="${esc(i.name)}">
+                  <div class="cart-name">
+                    <a href="/product.html?id=${i.product_id}">${esc(i.name)}</a>
+                    <div class="price">${money(i.price)}</div>
+                  </div>
+                  <div class="qty-form">
+                    <input type="number" min="0" max="${i.stock}" value="${i.quantity}" data-id="${i.id}">
+                    <button class="link-btn" data-update="${i.id}">Update</button>
+                  </div>
+                  <div class="line-total">${money(i.price * i.quantity)}</div>
+                  <button class="link-btn danger" data-remove="${i.id}">Remove</button>
+                </div>`).join("")}
+            </div>
+            <aside class="summary">
+              <h3>Order Summary</h3>
+              <div class="sum-row"><span>Subtotal (${c.item_count} items)</span><span>${money(c.total)}</span></div>
+              <div class="sum-row"><span>Shipping</span><span>Free</span></div>
+              <div class="sum-row total"><span>Total</span><span>${money(c.total)}</span></div>
+              <a class="btn" href="/checkout.html">Proceed to Checkout</a>
+            </aside>
+          </section>`;
+      }
+
+      // One click handler for all Update / Remove buttons (they carry the item id in data-* attributes).
+      $("content").onclick = async e => {
+        const upd = e.target.dataset.update, rem = e.target.dataset.remove;
+        try {
+          if (upd) {
+            const qty = parseInt(document.querySelector(`input[data-id="${upd}"]`).value, 10);
+            await api("/api/cart/update", "POST", { item_id: Number(upd), quantity: qty });
+          } else if (rem) {
+            await api("/api/cart/remove", "POST", { item_id: Number(rem) });
+          } else return;
+          await renderHeader();      // refresh Cart (n) in the header
+          await load();
+        } catch (err) { flash(err.message); }
+      };
+      load();
+    })();
+  </script>
+</body>
+</html>

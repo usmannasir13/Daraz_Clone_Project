@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daraz Clone</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="header"></div>
+  <main class="container">
+    <div id="flash"></div>
+    <section class="categories" id="categories"></section>
+    <h2 class="section-title" id="title">Just For You</h2>
+    <section class="grid" id="grid"></section>
+  </main>
+  <footer>Daraz Clone | Web Technology course project</footer>
+  <script src="/js/app.js"></script>
+  <script>
+    (async () => {
+      await renderHeader();
+      const params = new URLSearchParams(location.search);
+      const q = params.get("q") || "", category = params.get("category") || "";
+      const data = await api("/api/products?" + new URLSearchParams({ q, category }));
+
+      $("categories").innerHTML = `<a href="/" class="chip ${category ? "" : "active"}">All</a>` +
+        data.categories.map(c =>
+          `<a href="/?category=${encodeURIComponent(c)}" class="chip ${c === category ? "active" : ""}">${esc(c)}</a>`).join("");
+      if (q) $("title").textContent = `Results for "${q}"`;
+
+      $("grid").innerHTML = data.products.length ? data.products.map(p => `
+        <a class="card" href="/product.html?id=${p.id}">
+          <img src="${esc(p.image)}" alt="${esc(p.name)}">
+          <div class="info">
+            <h3>${esc(p.name)}</h3>
+            <div class="price">${money(p.price)}</div>
+            ${p.old_price ? `<div class="old"><s>${money(p.old_price)}</s> <span class="off">-${discount(p)}%</span></div>` : ""}
+          </div>
+        </a>`).join("") : '<p class="empty">No products found. Try a different search or category.</p>';
+    })();
+  </script>
+</body>
+</html>
