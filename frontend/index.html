@@ -10,23 +10,72 @@
   <div id="header"></div>
   <main class="container">
     <div id="flash"></div>
+    <div id="banner"></div>
     <section class="categories" id="categories"></section>
-    <h2 class="section-title" id="title">Just For You</h2>
+    <div class="toolbar">
+      <h2 class="section-title" id="title">Just For You</h2>
+      <select id="sort" aria-label="Sort products">
+        <option value="">Sort: Default</option>
+        <option value="price_asc">Price: Low to High</option>
+        <option value="price_desc">Price: High to Low</option>
+        <option value="name">Name: A to Z</option>
+        <option value="discount">Biggest discount</option>
+      </select>
+    </div>
     <section class="grid" id="grid"></section>
   </main>
   <footer>Daraz Clone | Web Technology course project</footer>
   <script src="/js/app.js"></script>
   <script>
+    // Auto-sliding banner: next/previous buttons, dots, pauses when the mouse is over it.
+    function startBanner() {
+      const slides = [
+        { title: "Mega Sale", text: "Up to 40% off on electronics", cls: "s1", link: "/?category=Electronics" },
+        { title: "Free Delivery", text: "Cash on delivery on every order", cls: "s2", link: "/" },
+        { title: "New Season Fashion", text: "Fresh styles at great prices", cls: "s3", link: "/?category=Fashion" }
+      ];
+      const box = $("banner");
+      box.innerHTML = `<div class="banner">
+        <div class="slides" id="slides">${slides.map(s => `
+          <div class="slide ${s.cls}"><h2>${s.title}</h2><p>${s.text}</p><a href="${s.link}">Shop now</a></div>`).join("")}
+        </div>
+        <button class="bn prev" aria-label="Previous slide">&#8249;</button>
+        <button class="bn next" aria-label="Next slide">&#8250;</button>
+        <div class="dots">${slides.map((s, i) => `<button data-i="${i}" aria-label="Slide ${i + 1}"></button>`).join("")}</div>
+      </div>`;
+      let i = 0, timer;
+      const show = n => {
+        i = (n + slides.length) % slides.length;
+        $("slides").style.transform = `translateX(-${i * 100}%)`;
+        box.querySelectorAll(".dots button").forEach((b, k) => b.classList.toggle("on", k === i));
+      };
+      const play = () => { clearInterval(timer); timer = setInterval(() => show(i + 1), 4000); };
+      box.querySelector(".prev").onclick = () => { show(i - 1); play(); };
+      box.querySelector(".next").onclick = () => { show(i + 1); play(); };
+      box.querySelectorAll(".dots button").forEach(b => b.onclick = () => { show(Number(b.dataset.i)); play(); });
+      box.onmouseenter = () => clearInterval(timer);
+      box.onmouseleave = play;
+      show(0);
+      play();
+    }
+
     (async () => {
       await renderHeader();
       const params = new URLSearchParams(location.search);
-      const q = params.get("q") || "", category = params.get("category") || "";
-      const data = await api("/api/products?" + new URLSearchParams({ q, category }));
+      const q = params.get("q") || "", category = params.get("category") || "", sort = params.get("sort") || "";
+      if (!q && !category) startBanner();                       // banner only on the plain home page
 
+      const data = await api("/api/products?" + new URLSearchParams({ q, category, sort }));
       $("categories").innerHTML = `<a href="/" class="chip ${category ? "" : "active"}">All</a>` +
         data.categories.map(c =>
           `<a href="/?category=${encodeURIComponent(c)}" class="chip ${c === category ? "active" : ""}">${esc(c)}</a>`).join("");
       if (q) $("title").textContent = `Results for "${q}"`;
+
+      $("sort").value = sort;
+      $("sort").onchange = () => {                              // keep search/category, change only the sort
+        params.set("sort", $("sort").value);
+        location.search = params.toString();
+      };
 
       $("grid").innerHTML = data.products.length ? data.products.map(p => `
         <a class="card" href="/product.html?id=${p.id}">

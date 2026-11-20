@@ -26,7 +26,7 @@
       const o = data.order;
       document.title = `Order #${o.id} | Daraz Clone`;
       $("content").innerHTML = `
-        <h2 class="section-title">Order #${o.id} <span class="badge">${esc(o.status)}</span></h2>
+        <h2 class="section-title">Order #${o.id} <span class="badge ${esc(o.status)}">${esc(o.status)}</span></h2>
         <section class="panel">
           <p class="note">Placed on ${esc(localTime(o.created_at))} | Cash on Delivery</p>
           <h3>Delivery address</h3>

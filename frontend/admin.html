@@ -10,6 +10,7 @@
   <div id="header"></div>
   <main class="container">
     <div id="flash"></div>
+    <div id="tabs"></div>
     <div id="content">
       <div class="admin-head">
         <h2 class="section-title">Manage products</h2>
@@ -28,6 +29,8 @@
         $("content").innerHTML = '<p class="empty-box">Only admins can open this page. <a href="/">Back to home</a></p>';
         return;
       }
+
+      $("tabs").innerHTML = adminTabs("Products");
 
       async function load() {
         const { products } = await api("/api/products");

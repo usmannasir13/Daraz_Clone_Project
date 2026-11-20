@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin | Daraz Clone</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="header"></div>
+  <main class="container">
+    <div id="flash"></div>
+    <div id="tabs"></div>
+    <div id="content"></div>
+  </main>
+  <footer>Daraz Clone | Web Technology course project</footer>
+  <script src="/js/app.js"></script>
+  <script>
+    (async () => {
+      const me = await renderHeader();
+      if (!requireLogin(me)) return;
+      if (!me.is_admin) {
+        $("content").innerHTML = '<p class="empty-box">Only admins can open this page. <a href="/">Back to home</a></p>';
+        return;
+      }
+      $("tabs").innerHTML = adminTabs("Dashboard");
+      const s = await api("/api/admin/stats");
+      const max = Math.max(1, ...s.daily.map(d => d.sales));
+      const rows = (list, text) => list.length ? list.map(text).join("") : '<p class="muted">Nothing to show.</p>';
+
+      $("content").innerHTML = `
+        <div class="stat-cards">
+          <div class="stat"><span>Total sales</span><b>${money(s.total_sales)}</b></div>
+          <div class="stat"><span>Orders</span><b>${s.orders}</b></div>
+          <div class="stat"><span>Pending orders</span><b>${s.pending}</b></div>
+          <div class="stat"><span>Products</span><b>${s.products}</b></div>
+          <div class="stat"><span>Customers</span><b>${s.customers}</b></div>
+        </div>
+        <div class="panels">
+          <section class="panel">
+            <h3>Sales, last 7 days</h3>
+            <div class="chart">${s.daily.map(d => `
+              <div class="bar-col" title="${money(d.sales)}">
+                <div class="bar-wrap"><div class="bar" style="height:${Math.round(d.sales / max * 100)}%"></div></div>
+                <small>${esc(d.day.slice(5))}<br>${d.sales ? (d.sales / 1000).toFixed(1) + "k" : "-"}</small>
+              </div>`).join("")}
+            </div>
+          </section>
+          <section class="panel">
+            <h3>Low stock (5 or less)</h3>
+            ${rows(s.low_stock, p => `<div class="list-row"><a href="/admin-form.html?id=${p.id}">${esc(p.name)}</a><b class="${p.stock === 0 ? "out" : ""}">${p.stock}</b></div>`)}
+          </section>
+          <section class="panel">
+            <h3>Top selling products</h3>
+            ${rows(s.top_products, p => `<div class="list-row"><span>${esc(p.name)}</span><b>${p.sold} sold</b></div>`)}
+          </section>
+        </div>`;
+    })();
+  </script>
+</body>
+</html>

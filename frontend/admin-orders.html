@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin | Daraz Clone</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="header"></div>
+  <main class="container">
+    <div id="flash"></div>
+    <div id="tabs"></div>
+    <div id="content"><div class="cart-items" id="list"></div></div>
+  </main>
+  <footer>Daraz Clone | Web Technology course project</footer>
+  <script src="/js/app.js"></script>
+  <script>
+    (async () => {
+      const me = await renderHeader();
+      if (!requireLogin(me)) return;
+      if (!me.is_admin) {
+        $("content").innerHTML = '<p class="empty-box">Only admins can open this page. <a href="/">Back to home</a></p>';
+        return;
+      }
+      $("tabs").innerHTML = adminTabs("Orders");
+
+      async function load() {
+        const { orders, statuses } = await api("/api/admin/orders");
+        $("list").innerHTML = orders.length ? orders.map(o => `
+          <div class="ao-row">
+            <div><b>Order #${o.id}</b><div class="muted">${esc(localTime(o.created_at))}</div></div>
+            <div>${esc(o.customer)}<div class="muted">${esc(o.email)}</div></div>
+            <div>${esc(o.items)}<div class="muted">${esc(o.address)}</div></div>
+            <div class="line-total">${money(o.total)}</div>
+            <select data-order="${o.id}" ${o.status === "Cancelled" ? "disabled" : ""}>
+              ${statuses.map(s => `<option ${s === o.status ? "selected" : ""}>${s}</option>`).join("")}
+            </select>
+          </div>`).join("") : '<p class="empty-box">No orders yet.</p>';
+      }
+
+      // One handler for every status dropdown (the order id is in data-order).
+      $("list").onchange = async e => {
+        const id = e.target.dataset.order, status = e.target.value;
+        if (!id) return;
+        if (status === "Cancelled" && !confirm("Cancel this order? The stock will be put back and the status cannot be changed again.")) {
+          return load();
+        }
+        try {
+          await api(`/api/admin/orders/${id}/status`, "PUT", { status });
+          flash(`Order #${id} is now ${status}.`, "success");
+        } catch (err) { flash(err.message); }
+        load();
+      };
+      load();
+    })();
+  </script>
+</body>
+</html>

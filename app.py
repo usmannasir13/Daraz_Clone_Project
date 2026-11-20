@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from functools import wraps
+from datetime import datetime, timezone, timedelta
 from flask import Flask, request, session, jsonify, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
@@ -129,6 +130,15 @@ def logout():
 
 
 # ---------------- PRODUCTS ----------------
+# ORDER BY cannot be a ? parameter, so only these fixed values are ever allowed (stops SQL injection).
+SORTS = {
+    "price_asc": "price ASC",
+    "price_desc": "price DESC",
+    "name": "name COLLATE NOCASE ASC",
+    "discount": "CASE WHEN old_price IS NULL THEN 0 ELSE (old_price - price) * 1.0 / old_price END DESC",
+}
+
+
 @app.route("/api/products")
 def products():
     q = request.args.get("q", "").strip()
@@ -140,8 +150,13 @@ def products():
     if category:
         sql += " AND category = ?"
         params.append(category)
+    sql += " ORDER BY " + SORTS.get(request.args.get("sort", ""), "id")     # value comes from the fixed SORTS list only
+    limit = to_int(request.args.get("limit"))
+    if limit and 1 <= limit <= 50:
+        sql += " LIMIT ?"
+        params.append(limit)
     db = get_db()
-    items = to_list(db.execute(sql + " ORDER BY id", params).fetchall())
+    items = to_list(db.execute(sql, params).fetchall())
     cats = [r["category"] for r in db.execute("SELECT DISTINCT category FROM products ORDER BY category")]
     db.close()
     return jsonify(products=items, categories=cats)
@@ -349,6 +364,74 @@ def admin_delete(product_id):
     db.commit()
     db.close()
     return jsonify(ok=True)
+
+
+# ---------------- ADMIN: ORDERS & DASHBOARD ----------------
+STATUSES = ["Pending", "Shipped", "Delivered", "Cancelled"]
+
+
+@app.route("/api/admin/orders")
+@admin_required
+def admin_orders():
+    db = get_db()
+    rows = to_list(db.execute("""
+        SELECT o.id, o.total, o.status, o.address, o.created_at, u.name AS customer, u.email,
+               (SELECT GROUP_CONCAT(p.name || ' x' || oi.quantity, ', ')
+                FROM order_items oi JOIN products p ON p.id = oi.product_id
+                WHERE oi.order_id = o.id) AS items
+        FROM orders o JOIN users u ON u.id = o.user_id ORDER BY o.id DESC"""))
+    db.close()
+    return jsonify(orders=rows, statuses=STATUSES)
+
+
+@app.route("/api/admin/orders/<int:order_id>/status", methods=["PUT"])
+@admin_required
+def admin_order_status(order_id):
+    status = str(body().get("status", ""))
+    if status not in STATUSES:                       # only the fixed list is accepted
+        return error("Invalid status.")
+    db = get_db()
+    order = db.execute("SELECT status FROM orders WHERE id = ?", (order_id,)).fetchone()
+    if order is None:
+        db.close()
+        return error("Order not found.", 404)
+    if order["status"] == "Cancelled":
+        db.close()
+        return error("A cancelled order cannot be changed.", 409)
+    if status == "Cancelled":                        # cancelling puts the items back in stock
+        db.execute("""UPDATE products SET stock = stock +
+                        (SELECT quantity FROM order_items WHERE order_id = ? AND product_id = products.id)
+                      WHERE id IN (SELECT product_id FROM order_items WHERE order_id = ?)""", (order_id, order_id))
+    db.execute("UPDATE orders SET status = ? WHERE id = ?", (status, order_id))
+    db.commit()
+    db.close()
+    return jsonify(ok=True)
+
+
+@app.route("/api/admin/stats")
+@admin_required
+def admin_stats():
+    db = get_db()
+    one = lambda sql: db.execute(sql).fetchone()[0]
+    stats = {
+        "total_sales": one("SELECT COALESCE(SUM(total), 0) FROM orders WHERE status != 'Cancelled'"),
+        "orders": one("SELECT COUNT(*) FROM orders"),
+        "pending": one("SELECT COUNT(*) FROM orders WHERE status = 'Pending'"),
+        "products": one("SELECT COUNT(*) FROM products"),
+        "customers": one("SELECT COUNT(*) FROM users WHERE is_admin = 0"),
+    }
+    stats["low_stock"] = to_list(db.execute("SELECT id, name, stock FROM products WHERE stock <= 5 ORDER BY stock, name"))
+    stats["top_products"] = to_list(db.execute("""
+        SELECT p.name, SUM(oi.quantity) AS sold FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id JOIN products p ON p.id = oi.product_id
+        WHERE o.status != 'Cancelled' GROUP BY p.id ORDER BY sold DESC LIMIT 5"""))
+    by_day = {r["day"]: r["sales"] for r in db.execute(
+        "SELECT date(created_at) AS day, SUM(total) AS sales FROM orders WHERE status != 'Cancelled' GROUP BY day")}
+    db.close()
+    today = datetime.now(timezone.utc).date()
+    days = [str(today - timedelta(days=i)) for i in range(6, -1, -1)]         # last 7 days, oldest first
+    stats["daily"] = [{"day": d, "sales": by_day.get(d, 0)} for d in days]
+    return jsonify(stats)
 
 
 if __name__ == "__main__":

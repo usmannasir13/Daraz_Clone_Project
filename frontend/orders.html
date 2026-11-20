@@ -25,7 +25,7 @@
           <a href="/order.html?id=${o.id}">Order #${o.id}</a>
           <span>${esc(localTime(o.created_at))}</span>
           <span class="line-total">${money(o.total)}</span>
-          <span class="badge">${esc(o.status)}</span>
+          <span class="badge ${esc(o.status)}">${esc(o.status)}</span>
           <a class="link-btn" href="/order.html?id=${o.id}">View</a>
         </div>`).join("")}</div>`
         : '<p class="empty-box">You have not placed any orders yet. <a href="/">Start shopping</a></p>';
